@@ -1,4 +1,4 @@
-import { catalog, findCatalogItem } from "./catalog.js";
+import { searchAniList, fetchAniListDetails } from "./anilist.js";
 import { readStore, writeStore } from "./storage.js";
 
 const app = document.getElementById("app");
@@ -14,12 +14,23 @@ const defaultState = {
     category: "all",
     sort: "year-desc",
   },
+  searchResults: [],
+  searchStatus: "idle",
+  searchError: null,
   library: {},
+  detailCache: {},
+  detailStatus: {},
 };
 
 let state = normalizeState(readStore("state", defaultState));
+let bootstrappedSearch = false;
+
 setTheme(state.theme);
 render();
+
+if (!state.searchResults.length) {
+  performSearch(state.search);
+}
 
 function normalizeState(value) {
   return {
@@ -27,6 +38,9 @@ function normalizeState(value) {
     ...value,
     search: { ...defaultState.search, ...(value?.search ?? {}) },
     library: value?.library ?? {},
+    searchResults: value?.searchResults ?? [],
+    detailCache: value?.detailCache ?? {},
+    detailStatus: value?.detailStatus ?? {},
   };
 }
 
@@ -44,18 +58,37 @@ function setState(updates) {
   render();
 }
 
-function updateLibraryItem(id, updates) {
-  const current = state.library[id] ?? {
-    id,
-    status: "watching",
+function getMeta(id) {
+  const libraryMeta = state.library[id]?.meta;
+  const detailMeta = state.detailCache[id];
+  const searchMeta = state.searchResults.find((item) => item.id === id);
+  return detailMeta || libraryMeta || searchMeta || null;
+}
+
+function addOrUpdateLibrary(meta, updates = {}) {
+  if (!meta) return;
+  const existing = state.library[meta.id] ?? {
+    id: meta.id,
+    status: meta.format === "anime" ? "watching" : "reading",
     progress: 0,
   };
+
   setState({
     library: {
       ...state.library,
-      [id]: { ...current, ...updates },
+      [meta.id]: {
+        ...existing,
+        ...updates,
+        meta,
+      },
     },
   });
+}
+
+function updateLibraryItem(id, updates) {
+  const current = state.library[id];
+  if (!current) return;
+  addOrUpdateLibrary(current.meta, { ...current, ...updates });
 }
 
 function removeLibraryItem(id) {
@@ -66,7 +99,7 @@ function removeLibraryItem(id) {
 
 function libraryEntries(filter = state.libraryFilter) {
   return Object.values(state.library)
-    .map((entry) => ({ entry, meta: findCatalogItem(entry.id) }))
+    .map((entry) => ({ entry, meta: entry.meta }))
     .filter(({ meta }) => {
       if (!meta) return false;
       if (filter === "anime") return meta.format === "anime";
@@ -75,31 +108,49 @@ function libraryEntries(filter = state.libraryFilter) {
     });
 }
 
-function searchResults() {
-  const { query, category, sort } = state.search;
-  const term = query.trim().toLowerCase();
-
-  let results = catalog.filter((item) => {
-    const matchesQuery =
-      !term ||
-      item.title.toLowerCase().includes(term) ||
-      item.description.toLowerCase().includes(term) ||
-      item.tags.some((tag) => tag.toLowerCase().includes(term));
-
-    const matchesCategory =
-      category === "all" ||
-      item.category === category ||
-      (category === "anime" && item.category === "movie");
-
-    return matchesQuery && matchesCategory;
-  });
-
-  if (sort === "year-desc") results = results.sort((a, b) => b.year - a.year);
-  if (sort === "year-asc") results = results.sort((a, b) => a.year - b.year);
-  if (sort === "title")
-    results = results.sort((a, b) => a.title.localeCompare(b.title));
-
+function sortResults(results) {
+  const { sort } = state.search;
+  const yearSort = (a, b) => (b.year || 0) - (a.year || 0);
+  if (sort === "year-desc") return [...results].sort(yearSort);
+  if (sort === "year-asc") return [...results].sort((a, b) => (a.year || 0) - (b.year || 0));
+  if (sort === "title") return [...results].sort((a, b) => a.title.localeCompare(b.title));
   return results;
+}
+
+async function performSearch(nextSearch = state.search) {
+  if (bootstrappedSearch && nextSearch.query === state.search.query && nextSearch.category === state.search.category) {
+    return;
+  }
+
+  bootstrappedSearch = true;
+  setState({ search: nextSearch, searchStatus: "loading", searchError: null });
+
+  try {
+    const results = await searchAniList(nextSearch);
+    setState({
+      searchResults: sortResults(results),
+      searchStatus: "done",
+      searchError: null,
+    });
+  } catch (error) {
+    setState({ searchStatus: "error", searchError: error.message, searchResults: [] });
+  }
+}
+
+async function loadDetails(id) {
+  if (state.detailCache[id]) return state.detailCache[id];
+  setState({ detailStatus: { ...state.detailStatus, [id]: "loading" } });
+  try {
+    const meta = await fetchAniListDetails(id);
+    setState({
+      detailCache: { ...state.detailCache, [id]: meta },
+      detailStatus: { ...state.detailStatus, [id]: "done" },
+    });
+    return meta;
+  } catch (error) {
+    setState({ detailStatus: { ...state.detailStatus, [id]: "error" } });
+    throw error;
+  }
 }
 
 function render() {
@@ -213,7 +264,7 @@ function renderLibrary() {
               .join("")}</div>`
           : `<div class="panel" style="text-align:center;">
               <h3>Nothing here yet</h3>
-              <p class="muted">Search for a title and add it to your list.</p>
+              <p class="muted">Search AniList and add titles to your list.</p>
               <button class="button" data-nav="search">Find something</button>
             </div>`
       }
@@ -222,7 +273,9 @@ function renderLibrary() {
 }
 
 function renderLibraryCard(entry, meta) {
-  const pct = Math.min(100, Math.round((entry.progress / meta.totalParts) * 100));
+  if (!meta) return "";
+  const maxParts = Math.max(meta.totalParts || 0, entry.progress || 0, 1);
+  const pct = Math.min(100, Math.round(((entry.progress || 0) / maxParts) * 100));
   return `
     <article class="panel library-card">
       <div class="card-title">
@@ -233,7 +286,7 @@ function renderLibraryCard(entry, meta) {
   }</span>
             <strong>${meta.title}</strong>
           </div>
-          <p class="muted" style="margin-top:4px;">${meta.year} · ${meta.tags
+          <p class="muted" style="margin-top:4px;">${meta.year || "Unknown"} · ${meta.tags
     .slice(0, 3)
     .join(" · ")}</p>
         </div>
@@ -243,10 +296,10 @@ function renderLibraryCard(entry, meta) {
       <div class="progress-shell">
         <div class="progress"><span style="width:${pct}%;"></span></div>
         <div class="library-controls">
-          <input type="range" min="0" max="${meta.totalParts}" value="${
-    entry.progress
-  }" data-progress-id="${entry.id}" />
-          <div class="count">${entry.progress} / ${meta.totalParts}</div>
+          <input type="range" min="0" max="${maxParts}" value="${entry.progress || 0}" data-progress-id="${
+    entry.id
+  }" />
+          <div class="count">${entry.progress || 0} / ${meta.totalParts || "?"}</div>
           <select data-status-id="${entry.id}">
             ${["watching", "reading", "complete", "on-hold"]
               .map(
@@ -266,16 +319,18 @@ function renderLibraryCard(entry, meta) {
 }
 
 function renderSearch() {
-  const results = searchResults();
+  const results = sortResults(state.searchResults);
+  const loading = state.searchStatus === "loading";
+  const errored = state.searchStatus === "error";
 
   return `
     <section class="panel">
       <div class="section-header">
         <h2>Discover</h2>
-        <p class="muted">Search for anime, movies, manga, and manhwa.</p>
+        <p class="muted">Live AniList results with add-to-library actions.</p>
       </div>
       <form id="search-form" class="search-bar">
-        <input type="search" name="query" placeholder="Search for a title or tag" value="${
+        <input type="search" name="query" placeholder="Search AniList for a title or tag" value="${
           state.search.query
         }" />
         <select name="category">
@@ -290,9 +345,12 @@ function renderSearch() {
           <option value="title" ${state.search.sort === "title" ? "selected" : ""}>Title A-Z</option>
         </select>
       </form>
+      ${loading ? `<p class="muted">Loading AniList…</p>` : ""}
+      ${errored ? `<p class="muted">${state.searchError || "Failed to load AniList."}</p>` : ""}
       <div class="grid cards" style="margin-top: 12px;">
         ${results.map((item) => renderSearchCard(item)).join("")}
       </div>
+      ${!loading && !errored && results.length === 0 ? `<p class="muted">No results yet. Try a different search.</p>` : ""}
     </section>
   `;
 }
@@ -304,12 +362,10 @@ function renderSearchCard(item) {
       <div class="card-title">
         <div>
           <div style="display:flex; align-items:center; gap:8px;">
-            <span class="badge">${item.format === "anime" ? "🎞️" : "📚"} ${
-    item.category
-  }</span>
+            <span class="badge">${item.format === "anime" ? "🎞️" : "📚"} ${item.category}</span>
             <strong>${item.title}</strong>
           </div>
-          <p class="muted" style="margin-top:4px;">${item.year} · ${item.tags
+          <p class="muted" style="margin-top:4px;">${item.year || "Unknown"} · ${item.tags
     .slice(0, 3)
     .join(" · ")}</p>
         </div>
@@ -330,9 +386,10 @@ function renderSearchCard(item) {
 }
 
 function renderDetails() {
-  const meta = state.selectedId ? findCatalogItem(state.selectedId) : null;
+  const meta = state.selectedId ? getMeta(state.selectedId) : null;
+  const status = state.selectedId ? state.detailStatus[state.selectedId] : null;
 
-  if (!meta)
+  if (!state.selectedId) {
     return `
       <section class="panel">
         <div class="section-header">
@@ -342,23 +399,38 @@ function renderDetails() {
         <button class="button" data-nav="search">Browse catalog</button>
       </section>
     `;
+  }
+
+  if (!meta && status !== "loading") {
+    loadDetails(state.selectedId).catch(() => {});
+  }
+
+  if (!meta) {
+    return `
+      <section class="panel">
+        <div class="section-header">
+          <h2>Loading details…</h2>
+          <p class="muted">Fetching from AniList.</p>
+        </div>
+      </section>
+    `;
+  }
 
   const entry = state.library[meta.id];
   const progress = entry?.progress ?? 0;
-  const pct = Math.min(100, Math.round((progress / meta.totalParts) * 100));
+  const maxParts = Math.max(meta.totalParts || 0, progress || 0, 1);
+  const pct = Math.min(100, Math.round(((progress || 0) / maxParts) * 100));
 
   return `
     <section class="panel">
       <div class="section-header">
         <div>
           <h2>${meta.title}</h2>
-          <p class="muted">${meta.year} · ${meta.category} · ${meta.tags
+          <p class="muted">${meta.year || "Unknown"} · ${meta.category} · ${meta.tags
     .slice(0, 3)
     .join(" · ")}</p>
         </div>
-        <div class="badge">${meta.format === "anime" ? "🎞️" : "📚"} ${
-    meta.format
-  }</div>
+        <div class="badge">${meta.format === "anime" ? "🎞️" : "📚"} ${meta.format}</div>
       </div>
       <p>${meta.description}</p>
       <div class="tag-row">${meta.tags
@@ -367,10 +439,10 @@ function renderDetails() {
       <div class="progress-shell" style="margin-top:16px;">
         <div class="progress"><span style="width:${pct}%;"></span></div>
         <div class="library-controls" style="margin-top: 8px;">
-          <input type="range" min="0" max="${meta.totalParts}" value="${progress}" data-progress-id="${
+          <input type="range" min="0" max="${maxParts}" value="${progress}" data-progress-id="${
     meta.id
   }" />
-          <div class="count">${progress} / ${meta.totalParts}</div>
+          <div class="count">${progress} / ${meta.totalParts || "?"}</div>
           <select data-status-id="${meta.id}">
             ${["watching", "reading", "complete", "on-hold"]
               .map(
@@ -493,13 +565,12 @@ function wireEvents() {
   if (searchForm) {
     const handleSearchChange = () => {
       const data = new FormData(searchForm);
-      setState({
-        search: {
-          query: data.get("query"),
-          category: data.get("category"),
-          sort: data.get("sort"),
-        },
-      });
+      const nextSearch = {
+        query: data.get("query"),
+        category: data.get("category"),
+        sort: data.get("sort"),
+      };
+      performSearch(nextSearch);
     };
     searchForm.addEventListener("input", handleSearchChange);
     searchForm.addEventListener("change", handleSearchChange);
@@ -508,10 +579,20 @@ function wireEvents() {
   app.querySelectorAll("[data-add-id]").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = btn.dataset.addId;
-      const meta = findCatalogItem(id);
-      if (!meta) return;
-      updateLibraryItem(id, { status: meta.format === "anime" ? "watching" : "reading" });
-      setState({ selectedId: id, activeTab: "details" });
+      const meta = getMeta(id);
+      if (meta) {
+        addOrUpdateLibrary(meta);
+        setState({ selectedId: id, activeTab: "details" });
+        return;
+      }
+      loadDetails(id)
+        .then((fetched) => {
+          if (fetched) {
+            addOrUpdateLibrary(fetched);
+            setState({ selectedId: id, activeTab: "details" });
+          }
+        })
+        .catch(() => {});
     });
   });
 

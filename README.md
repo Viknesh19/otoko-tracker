@@ -14,7 +14,7 @@ python -m http.server 4173
 ## Features
 
 - Email/name sign-in (local only) with settings for theme and profile.
-- Search catalog of anime/movies/manga/manhwa with detail view.
+- Live search backed by the AniList GraphQL API with detail view.
 - Add titles to your library with progress sliders, status tags, and sorting by media type.
 - Floating “+” button to jump to search and quickly add new entries.
 - Data is stored locally in your browser so you can pick up where you left off.
