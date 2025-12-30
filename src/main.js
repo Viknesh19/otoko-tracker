@@ -88,7 +88,11 @@ function addOrUpdateLibrary(meta, updates = {}) {
 function updateLibraryItem(id, updates) {
   const current = state.library[id];
   if (!current) return;
-  addOrUpdateLibrary(current.meta, { ...current, ...updates });
+  const nextProgress = updates.progress ?? current.progress ?? 0;
+  const nextMeta = current.meta
+    ? { ...current.meta, totalParts: Math.max(current.meta.totalParts || 0, nextProgress) }
+    : current.meta;
+  addOrUpdateLibrary(nextMeta, { ...current, ...updates, progress: nextProgress });
 }
 
 function removeLibraryItem(id) {
@@ -276,42 +280,47 @@ function renderLibraryCard(entry, meta) {
   if (!meta) return "";
   const maxParts = Math.max(meta.totalParts || 0, entry.progress || 0, 1);
   const pct = Math.min(100, Math.round(((entry.progress || 0) / maxParts) * 100));
+  const totalLabel = meta.format === "anime" ? "Latest episode" : "Latest chapter";
   return `
-    <article class="panel library-card">
-      <div class="card-title">
-        <div>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span class="badge">${meta.format === "anime" ? "🎞️" : "📚"} ${
+    <article class="panel library-card media-card">
+      <div class="media-thumb">${meta.coverImage ? `<img src="${meta.coverImage}" alt="${meta.title} cover" />` : ""}</div>
+      <div class="media-body">
+        <div class="card-title">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="badge">${meta.format === "anime" ? "🎞️" : "📚"} ${
     meta.category
   }</span>
-            <strong>${meta.title}</strong>
-          </div>
-          <p class="muted" style="margin-top:4px;">${meta.year || "Unknown"} · ${meta.tags
+              <strong>${meta.title}</strong>
+            </div>
+            <p class="muted" style="margin-top:4px;">${meta.year || "Unknown"} · ${meta.tags
     .slice(0, 3)
     .join(" · ")}</p>
+          </div>
+          <div class="badge subtle">${entry.status}</div>
         </div>
-        <div class="badge subtle">${entry.status}</div>
-      </div>
-      <p>${meta.description}</p>
-      <div class="progress-shell">
-        <div class="progress"><span style="width:${pct}%;"></span></div>
-        <div class="library-controls">
-          <input type="range" min="0" max="${maxParts}" value="${entry.progress || 0}" data-progress-id="${
+        <p class="muted">${totalLabel}: ${meta.totalParts || "?"}</p>
+        <p>${meta.description}</p>
+        <div class="progress-shell">
+          <div class="progress"><span style="width:${pct}%;"></span></div>
+          <div class="library-controls">
+            <input type="range" min="0" max="${maxParts}" value="${entry.progress || 0}" data-progress-id="${
     entry.id
   }" />
-          <div class="count">${entry.progress || 0} / ${meta.totalParts || "?"}</div>
-          <select data-status-id="${entry.id}">
-            ${["watching", "reading", "complete", "on-hold"]
-              .map(
-                (status) =>
-                  `<option value="${status}" ${
-                    status === entry.status ? "selected" : ""
-                  }>${status}</option>`
-              )
-              .join("")}
-          </select>
-          <button class="button secondary" data-remove-id="${entry.id}">Remove</button>
-          <button class="button" data-open-id="${entry.id}">Details</button>
+            <div class="count">${entry.progress || 0} / ${meta.totalParts || "?"}</div>
+            <select data-status-id="${entry.id}">
+              ${["watching", "reading", "complete", "on-hold"]
+                .map(
+                  (status) =>
+                    `<option value="${status}" ${
+                      status === entry.status ? "selected" : ""
+                    }>${status}</option>`
+                )
+                .join("")}
+            </select>
+            <button class="button secondary" data-remove-id="${entry.id}">Remove</button>
+            <button class="button" data-open-id="${entry.id}">Details</button>
+          </div>
         </div>
       </div>
     </article>
@@ -344,6 +353,7 @@ function renderSearch() {
           <option value="year-asc" ${state.search.sort === "year-asc" ? "selected" : ""}>Oldest</option>
           <option value="title" ${state.search.sort === "title" ? "selected" : ""}>Title A-Z</option>
         </select>
+        <button type="submit">Search</button>
       </form>
       ${loading ? `<p class="muted">Loading AniList…</p>` : ""}
       ${errored ? `<p class="muted">${state.searchError || "Failed to load AniList."}</p>` : ""}
@@ -357,29 +367,34 @@ function renderSearch() {
 
 function renderSearchCard(item) {
   const inLibrary = Boolean(state.library[item.id]);
+  const totalLabel = item.format === "anime" ? "Latest episode" : "Latest chapter";
   return `
-    <article class="panel">
-      <div class="card-title">
-        <div>
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span class="badge">${item.format === "anime" ? "🎞️" : "📚"} ${item.category}</span>
-            <strong>${item.title}</strong>
-          </div>
-          <p class="muted" style="margin-top:4px;">${item.year || "Unknown"} · ${item.tags
+    <article class="panel media-card">
+      <div class="media-thumb">${item.coverImage ? `<img src="${item.coverImage}" alt="${item.title} cover" />` : ""}</div>
+      <div class="media-body">
+        <div class="card-title">
+          <div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="badge">${item.format === "anime" ? "🎞️" : "📚"} ${item.category}</span>
+              <strong>${item.title}</strong>
+            </div>
+            <p class="muted" style="margin-top:4px;">${item.year || "Unknown"} · ${item.tags
     .slice(0, 3)
     .join(" · ")}</p>
+          </div>
+          <button class="button secondary" data-open-id="${item.id}">Details</button>
         </div>
-        <button class="button secondary" data-open-id="${item.id}">Details</button>
-      </div>
-      <p>${item.description}</p>
-      <div class="tag-row">
-        ${item.tags.map((tag) => `<span class="badge subtle">${tag}</span>`).join("")}
-      </div>
-      <div style="margin-top:12px; display:flex; gap:10px;">
-        ${inLibrary ? `<span class="badge">Already in library</span>` : ""}
-        <button class="button" data-add-id="${item.id}">
-          ${inLibrary ? "Update entry" : "Add to library"}
-        </button>
+        <p class="muted">${totalLabel}: ${item.totalParts || "?"}</p>
+        <p>${item.description}</p>
+        <div class="tag-row">
+          ${item.tags.map((tag) => `<span class="badge subtle">${tag}</span>`).join("")}
+        </div>
+        <div style="margin-top:12px; display:flex; gap:10px;">
+          ${inLibrary ? `<span class="badge">Already in library</span>` : ""}
+          <button class="button" data-add-id="${item.id}">
+            ${inLibrary ? "Update entry" : "Add to library"}
+          </button>
+        </div>
       </div>
     </article>
   `;
@@ -420,40 +435,45 @@ function renderDetails() {
   const progress = entry?.progress ?? 0;
   const maxParts = Math.max(meta.totalParts || 0, progress || 0, 1);
   const pct = Math.min(100, Math.round(((progress || 0) / maxParts) * 100));
+  const totalLabel = meta.format === "anime" ? "Latest episode" : "Latest chapter";
 
   return `
-    <section class="panel">
-      <div class="section-header">
-        <div>
-          <h2>${meta.title}</h2>
-          <p class="muted">${meta.year || "Unknown"} · ${meta.category} · ${meta.tags
+    <section class="panel media-card detail-card">
+      <div class="media-thumb">${meta.coverImage ? `<img src="${meta.coverImage}" alt="${meta.title} cover" />` : ""}</div>
+      <div class="media-body">
+        <div class="section-header">
+          <div>
+            <h2>${meta.title}</h2>
+            <p class="muted">${meta.year || "Unknown"} · ${meta.category} · ${meta.tags
     .slice(0, 3)
     .join(" · ")}</p>
+          </div>
+          <div class="badge">${meta.format === "anime" ? "🎞️" : "📚"} ${meta.format}</div>
         </div>
-        <div class="badge">${meta.format === "anime" ? "🎞️" : "📚"} ${meta.format}</div>
-      </div>
-      <p>${meta.description}</p>
-      <div class="tag-row">${meta.tags
-        .map((tag) => `<span class="badge subtle">${tag}</span>`)
-        .join("")}</div>
-      <div class="progress-shell" style="margin-top:16px;">
-        <div class="progress"><span style="width:${pct}%;"></span></div>
-        <div class="library-controls" style="margin-top: 8px;">
-          <input type="range" min="0" max="${maxParts}" value="${progress}" data-progress-id="${
+        <p class="muted">${totalLabel}: ${meta.totalParts || "?"}</p>
+        <p>${meta.description}</p>
+        <div class="tag-row">${meta.tags
+          .map((tag) => `<span class="badge subtle">${tag}</span>`)
+          .join("")}</div>
+        <div class="progress-shell" style="margin-top:16px;">
+          <div class="progress"><span style="width:${pct}%;"></span></div>
+          <div class="library-controls" style="margin-top: 8px;">
+            <input type="range" min="0" max="${maxParts}" value="${progress}" data-progress-id="${
     meta.id
   }" />
-          <div class="count">${progress} / ${meta.totalParts || "?"}</div>
-          <select data-status-id="${meta.id}">
-            ${["watching", "reading", "complete", "on-hold"]
-              .map(
-                (status) =>
-                  `<option value="${status}" ${
-                    status === entry?.status ? "selected" : ""
-                  }>${status}</option>`
-              )
-              .join("")}
-          </select>
-          <button class="button" data-add-id="${meta.id}">Save to library</button>
+            <div class="count">${progress} / ${meta.totalParts || "?"}</div>
+            <select data-status-id="${meta.id}">
+              ${["watching", "reading", "complete", "on-hold"]
+                .map(
+                  (status) =>
+                    `<option value="${status}" ${
+                      status === entry?.status ? "selected" : ""
+                    }>${status}</option>`
+                )
+                .join("")}
+            </select>
+            <button class="button" data-add-id="${meta.id}">Save to library</button>
+          </div>
         </div>
       </div>
     </section>
@@ -563,7 +583,8 @@ function wireEvents() {
 
   const searchForm = app.querySelector("#search-form");
   if (searchForm) {
-    const handleSearchChange = () => {
+    const handleSearchSubmit = (event) => {
+      event?.preventDefault();
       const data = new FormData(searchForm);
       const nextSearch = {
         query: data.get("query"),
@@ -572,8 +593,12 @@ function wireEvents() {
       };
       performSearch(nextSearch);
     };
-    searchForm.addEventListener("input", handleSearchChange);
-    searchForm.addEventListener("change", handleSearchChange);
+    searchForm.addEventListener("submit", handleSearchSubmit);
+    searchForm.addEventListener("change", (event) => {
+      if (event.target.name !== "query") {
+        handleSearchSubmit(event);
+      }
+    });
   }
 
   app.querySelectorAll("[data-add-id]").forEach((btn) => {
