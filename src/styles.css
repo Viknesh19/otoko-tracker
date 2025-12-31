@@ -160,7 +160,7 @@ nav.top-nav button.active {
   gap: 6px;
   background: rgba(124, 93, 255, 0.14);
   color: var(--text);
-  border-radius: 999px;
+  border-radius: 15px;
   padding: 6px 10px;
   font-weight: 600;
   font-size: 12px;
