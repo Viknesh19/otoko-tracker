@@ -311,7 +311,7 @@ function renderLibraryCard(entry, meta) {
   const totalLabel = meta.format === "anime" ? "Latest episode" : "Latest chapter";
   const nextRelease = formatNextRelease(meta);
   return `
-    <article class="panel library-card media-card">
+    <article class="panel library-card media-card stacked-card">
       <div class="media-thumb">${meta.coverImage ? `<img src="${meta.coverImage}" alt="${meta.title} cover" />` : ""}</div>
       <div class="media-body">
         <div class="card-title">
@@ -400,7 +400,7 @@ function renderSearchCard(item) {
   const totalLabel = item.format === "anime" ? "Latest episode" : "Latest chapter";
   const nextRelease = formatNextRelease(item);
   return `
-    <article class="panel media-card">
+    <article class="panel media-card stacked-card">
       <div class="media-thumb">${item.coverImage ? `<img src="${item.coverImage}" alt="${item.title} cover" />` : ""}</div>
       <div class="media-body">
         <div class="card-title">
