@@ -121,6 +121,34 @@ function sortResults(results) {
   return results;
 }
 
+function formatDate(timestamp) {
+  if (!timestamp) return null;
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function formatNextRelease(meta) {
+  if (!meta) return null;
+  const isAnime = meta.format === "anime";
+  const label = isAnime ? "Next episode" : "Next chapter";
+
+  if (meta.status === "FINISHED") {
+    return isAnime ? "Completed — all episodes released" : "Completed — all chapters released";
+  }
+
+  if (isAnime && meta.upcomingAiringEpisode && meta.nextReleaseAt) {
+    const date = formatDate(meta.nextReleaseAt);
+    return `${label}: ${meta.upcomingAiringEpisode} ${date ? `on ${date}` : ""}`.trim();
+  }
+
+  if (isAnime && meta.nextAiringEpisodeNumber) {
+    return `Latest aired episode: ${meta.nextAiringEpisodeNumber}`;
+  }
+
+  return `${label}: ${meta.nextReleaseAt ? formatDate(meta.nextReleaseAt) : "TBD"}`;
+}
+
 async function performSearch(nextSearch = state.search) {
   if (bootstrappedSearch && nextSearch.query === state.search.query && nextSearch.category === state.search.category) {
     return;
@@ -281,6 +309,7 @@ function renderLibraryCard(entry, meta) {
   const maxParts = Math.max(meta.totalParts || 0, entry.progress || 0, 1);
   const pct = Math.min(100, Math.round(((entry.progress || 0) / maxParts) * 100));
   const totalLabel = meta.format === "anime" ? "Latest episode" : "Latest chapter";
+  const nextRelease = formatNextRelease(meta);
   return `
     <article class="panel library-card media-card">
       <div class="media-thumb">${meta.coverImage ? `<img src="${meta.coverImage}" alt="${meta.title} cover" />` : ""}</div>
@@ -300,7 +329,8 @@ function renderLibraryCard(entry, meta) {
           <div class="badge subtle">${entry.status}</div>
         </div>
         <p class="muted">${totalLabel}: ${meta.totalParts || "?"}</p>
-        <p>${meta.description}</p>
+        ${nextRelease ? `<p class="muted">${nextRelease}</p>` : ""}
+        <p class="line-clamp-2">${meta.description}</p>
         <div class="progress-shell">
           <div class="progress"><span style="width:${pct}%;"></span></div>
           <div class="library-controls">
@@ -368,6 +398,7 @@ function renderSearch() {
 function renderSearchCard(item) {
   const inLibrary = Boolean(state.library[item.id]);
   const totalLabel = item.format === "anime" ? "Latest episode" : "Latest chapter";
+  const nextRelease = formatNextRelease(item);
   return `
     <article class="panel media-card">
       <div class="media-thumb">${item.coverImage ? `<img src="${item.coverImage}" alt="${item.title} cover" />` : ""}</div>
@@ -385,7 +416,8 @@ function renderSearchCard(item) {
           <button class="button secondary" data-open-id="${item.id}">Details</button>
         </div>
         <p class="muted">${totalLabel}: ${item.totalParts || "?"}</p>
-        <p>${item.description}</p>
+        ${nextRelease ? `<p class="muted">${nextRelease}</p>` : ""}
+        <p class="line-clamp-2">${item.description}</p>
         <div class="tag-row">
           ${item.tags.map((tag) => `<span class="badge subtle">${tag}</span>`).join("")}
         </div>
@@ -436,6 +468,7 @@ function renderDetails() {
   const maxParts = Math.max(meta.totalParts || 0, progress || 0, 1);
   const pct = Math.min(100, Math.round(((progress || 0) / maxParts) * 100));
   const totalLabel = meta.format === "anime" ? "Latest episode" : "Latest chapter";
+  const nextRelease = formatNextRelease(meta);
 
   return `
     <section class="panel media-card detail-card">
@@ -451,6 +484,7 @@ function renderDetails() {
           <div class="badge">${meta.format === "anime" ? "🎞️" : "📚"} ${meta.format}</div>
         </div>
         <p class="muted">${totalLabel}: ${meta.totalParts || "?"}</p>
+        ${nextRelease ? `<p class="muted">${nextRelease}</p>` : ""}
         <p>${meta.description}</p>
         <div class="tag-row">${meta.tags
           .map((tag) => `<span class="badge subtle">${tag}</span>`)
