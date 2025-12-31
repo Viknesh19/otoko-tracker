@@ -58,6 +58,12 @@ function setState(updates) {
   render();
 }
 
+function resetAppData() {
+  bootstrappedSearch = false;
+  setState(defaultState);
+  performSearch(defaultState.search);
+}
+
 function getMeta(id) {
   const libraryMeta = state.library[id]?.meta;
   const detailMeta = state.detailCache[id];
@@ -515,38 +521,115 @@ function renderDetails() {
 }
 
 function renderSettings() {
+  const emailLabel = state.user?.email || "Not signed in";
+  const nameLabel = state.user?.name || "Guest";
+  const sessionStatus = state.user ? "Signed in" : "Guest session";
+
   return `
-    <section class="grid" style="grid-template-columns: 1fr 1fr; gap: 16px;">
-      <div class="panel">
-        <h3>Profile</h3>
-        <p class="muted">Update your display name and email.</p>
-        <form id="profile-form" class="grid" style="gap: 10px; margin-top: 10px;">
-          <input name="name" value="${state.user?.name ?? ""}" placeholder="Display name" />
-          <input name="email" value="${state.user?.email ?? ""}" type="email" placeholder="Email" />
-          <button type="submit">Save profile</button>
+    <section class="settings-grid">
+      <div class="panel settings-card">
+        <div class="section-header settings-header">
+          <div>
+            <p class="eyebrow">Account</p>
+            <h3>Profile & access</h3>
+            <p class="muted">Update how you appear across the app and confirm your contact info.</p>
+          </div>
+          <span class="badge subtle">${sessionStatus}</span>
+        </div>
+        <form id="profile-form" class="settings-form">
+          <label class="field">
+            <span class="field-label">Display name</span>
+            <input name="name" value="${nameLabel}" placeholder="Display name" autocomplete="name" />
+          </label>
+          <label class="field">
+            <span class="field-label">Email</span>
+            <input name="email" value="${state.user?.email ?? ""}" type="email" placeholder="Email" autocomplete="email" />
+          </label>
+          <div class="form-actions">
+            <button type="button" class="button secondary" data-nav="library">Back to library</button>
+            <button type="submit">Save profile</button>
+          </div>
         </form>
-      </div>
-      <div class="panel">
-        <h3>Preferences</h3>
-        <p class="muted">Theme, sorting, and quick toggles.</p>
-        <div class="grid" style="gap: 10px; margin-top: 10px;">
-          <div class="card-title">
-            <span>Color theme</span>
-            <div style="display:flex; gap:8px;">
-              <button class="button ${state.theme === "dark" ? "" : "secondary"}" data-theme="dark">Dark</button>
-              <button class="button ${state.theme === "light" ? "" : "secondary"}" data-theme="light">Light</button>
-            </div>
+        <div class="settings-row">
+          <div>
+            <strong>Session controls</strong>
+            <p class="muted">Currently signed in as <span class="pill">${emailLabel}</span>. Sign out to switch accounts.</p>
           </div>
-          <div class="card-title">
-            <span>Library view</span>
-            <div style="display:flex; gap:8px;">
-              <button class="button ${state.libraryFilter === "anime" ? "" : "secondary"}" data-library-filter="anime">Anime</button>
-              <button class="button ${state.libraryFilter === "comic" ? "" : "secondary"}" data-library-filter="comic">Comics</button>
-            </div>
-          </div>
-          <div class="card-title">
-            <span>Sign out</span>
+          <div class="row-actions">
             <button class="button ghost" id="sign-out">Sign out</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel settings-card">
+        <div class="section-header settings-header">
+          <div>
+            <p class="eyebrow">Experience</p>
+            <h3>Appearance & preferences</h3>
+            <p class="muted">Tune the theme and your default browsing mode.</p>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <strong>Color theme</strong>
+            <p class="muted">Switch between light and dark for the entire app.</p>
+          </div>
+          <div class="row-actions">
+            <button class="button ${state.theme === "dark" ? "" : "secondary"}" data-theme="dark">Dark</button>
+            <button class="button ${state.theme === "light" ? "" : "secondary"}" data-theme="light">Light</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <strong>Default library view</strong>
+            <p class="muted">Choose which collection you see first.</p>
+          </div>
+          <div class="row-actions">
+            <button class="button ${state.libraryFilter === "anime" ? "" : "secondary"}" data-library-filter="anime">Anime / Movies</button>
+            <button class="button ${state.libraryFilter === "comic" ? "" : "secondary"}" data-library-filter="comic">Manga / Manhwa</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <strong>Quick access</strong>
+            <p class="muted">Jump to discover or details without losing your place.</p>
+          </div>
+          <div class="row-actions">
+            <button class="button secondary" data-nav="search">Discover titles</button>
+            <button class="button secondary" data-nav="details">Open details</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel settings-card full-width">
+        <div class="section-header settings-header">
+          <div>
+            <p class="eyebrow">Privacy & legal</p>
+            <h3>Privacy policy</h3>
+            <p class="muted">Otoko Tracker keeps your information on this device. Nothing is sent to a server.</p>
+          </div>
+        </div>
+        <div class="legal-box">
+          <p><strong>Where your data lives:</strong> your library, preferences, and profile stay in your browser's local storage.</p>
+          <p><strong>What we collect:</strong> only the anime or comic metadata loaded from AniList while you browse.</p>
+          <p><strong>How to control it:</strong> sign out to remove your profile, or clear local data if you're on a shared device.</p>
+        </div>
+        <details class="legal-details">
+          <summary>Read the in-app privacy policy</summary>
+          <ul>
+            <li>We do not create accounts on a remote service or send your library anywhere.</li>
+            <li>Your search terms are only sent to AniList to fetch results while you use the Discover tab.</li>
+            <li>You can delete everything stored locally at any time using the "Clear local data" control below.</li>
+            <li>Changing themes or filters only updates preferences saved to this browser.</li>
+          </ul>
+        </details>
+        <div class="settings-row">
+          <div>
+            <strong>Data controls</strong>
+            <p class="muted">Manage stored information on this device.</p>
+          </div>
+          <div class="row-actions">
+            <button class="button secondary" id="reset-app">Clear local data</button>
           </div>
         </div>
       </div>
@@ -614,6 +697,9 @@ function wireEvents() {
 
   const signOut = app.querySelector("#sign-out");
   signOut?.addEventListener("click", () => setState({ user: null, activeTab: "library" }));
+
+  const resetApp = app.querySelector("#reset-app");
+  resetApp?.addEventListener("click", () => resetAppData());
 
   const searchForm = app.querySelector("#search-form");
   if (searchForm) {
