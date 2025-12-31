@@ -11,6 +11,7 @@ const SEARCH_QUERY = `
         episodes
         chapters
         status
+        nextAiringEpisode { episode airingAt }
         description(asHtml: false)
         genres
         countryOfOrigin
@@ -31,6 +32,7 @@ const DETAILS_QUERY = `
       episodes
       chapters
       status
+      nextAiringEpisode { episode airingAt }
       description(asHtml: false)
       genres
       countryOfOrigin
@@ -73,7 +75,12 @@ function normalizeMedia(media) {
     ? media.format === "MOVIE" ? "movie" : "anime"
     : media.countryOfOrigin === "KR" ? "manhwa" : "manga";
 
-  const totalParts = media.type === "ANIME" ? media.episodes : media.chapters;
+  const upcomingEpisodeNumber = media.nextAiringEpisode?.episode ?? null;
+  const nextAiringEpisodeNumber = upcomingEpisodeNumber ? upcomingEpisodeNumber - 1 : null;
+  const episodeTotal = media.episodes ?? null;
+  const totalParts = media.type === "ANIME"
+    ? (episodeTotal ?? nextAiringEpisodeNumber ?? 0)
+    : media.chapters ?? 0;
   const tags = media.genres?.slice(0, 6) ?? [];
   const description = (media.description || "").replace(/<[^>]+>/g, "").trim();
 
@@ -87,6 +94,12 @@ function normalizeMedia(media) {
     description,
     tags,
     coverImage: media.coverImage?.large,
+    status: media.status,
+    nextAiringEpisodeNumber,
+    upcomingAiringEpisode: upcomingEpisodeNumber,
+    nextReleaseAt: media.nextAiringEpisode?.airingAt
+      ? media.nextAiringEpisode.airingAt * 1000
+      : null,
   };
 }
 
