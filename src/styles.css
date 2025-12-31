@@ -294,6 +294,18 @@ p.muted {
   align-items: start;
 }
 
+.media-card.stacked-card {
+  grid-template-columns: 1fr;
+}
+
+.media-card.stacked-card .media-thumb {
+  width: 100%;
+}
+
+.media-card.stacked-card .card-title {
+  align-items: flex-start;
+}
+
 .media-thumb {
   width: 100%;
   aspect-ratio: 2 / 3;
