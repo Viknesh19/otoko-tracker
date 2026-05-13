@@ -2,6 +2,15 @@
 
 A lightweight, single-page tracker for anime, movies, manga, and manhwa with dark/light themes and local-first persistence.
 
+## Project shape
+
+Otoko Tracker is a static ES module app. There is no build step, package manager, backend, or server database. The browser loads `index.html`, which imports:
+
+- `src/main.js` for state, rendering, navigation, and UI events.
+- `src/anilist.js` for AniList GraphQL search and detail lookups.
+- `src/storage.js` for localStorage persistence.
+- `src/styles.css` for the responsive light/dark UI.
+
 ## Getting started
 
 No build step is required. You can open `index.html` directly in your browser or serve it locally:
@@ -16,5 +25,18 @@ python -m http.server 4173
 - Email/name sign-in (local only) with settings for theme and profile.
 - Live search backed by the AniList GraphQL API with detail view.
 - Add titles to your library with progress sliders, status tags, and sorting by media type.
-- Floating “+” button to jump to search and quickly add new entries.
+- Floating "+" button to jump to search and quickly add new entries.
 - Data is stored locally in your browser so you can pick up where you left off.
+
+## Data and privacy
+
+All profile, library, theme, filter, cache, and progress data is stored in browser localStorage under the `otoko-tracker:state` key. Search terms are sent to AniList only when fetching catalog results.
+
+## Manual checks
+
+After changes, open `index.html` or run the local server command above and check:
+
+- Sign in with an email and optional display name.
+- Search AniList, open details, and add an entry to the library.
+- Change progress/status and reload to confirm persistence.
+- Switch light/dark theme and clear local data from Settings.
