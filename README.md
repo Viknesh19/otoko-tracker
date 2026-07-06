@@ -1,12 +1,17 @@
 # Otoko Tracker
 
-A lightweight, single-page tracker for anime, movies, manga, and manhwa with dark/light themes and local-first persistence.
+A lightweight multi-page tracker for anime, movies, manga, and manhwa with dark/light themes and local-first persistence.
 
 ## Project shape
 
-Otoko Tracker is a static ES module app. There is no build step, package manager, backend, or server database. The browser loads `index.html`, which imports:
+Otoko Tracker is a static ES module website. There is no build step, package manager, backend, or server database. The browser loads thin HTML page shells that all share the same source modules:
 
-- `src/main.js` for state, rendering, navigation, and UI events.
+- `index.html` for the home and local sign-in experience.
+- `library.html` for saved titles and progress controls.
+- `discover.html` for AniList search.
+- `details.html` for selected title metadata, including `details.html?id=<anilist-id>`.
+- `settings.html` for profile, theme, privacy, and local data controls.
+- `src/main.js` for shared state, rendering, routing, navigation, and UI events.
 - `src/anilist.js` for AniList GraphQL search and detail lookups.
 - `src/storage.js` for localStorage persistence.
 - `src/styles.css` for the responsive light/dark UI.
@@ -37,6 +42,7 @@ All profile, library, theme, filter, cache, and progress data is stored in brows
 After changes, open `index.html` or run the local server command above and check:
 
 - Sign in with an email and optional display name.
-- Search AniList, open details, and add an entry to the library.
+- Navigate between Home, Library, Discover, Details, and Settings with normal page URLs.
+- Search AniList from `discover.html`, open `details.html?id=<id>`, and add an entry to the library.
 - Change progress/status and reload to confirm persistence.
 - Switch light/dark theme and clear local data from Settings.
